@@ -41,6 +41,14 @@ const {
   markAllNotificationsAsRead
 } = require('../../controllers/admin/adminController');
 
+// Import inventory functions from center admin controller
+const {
+  getInventory,
+  addInventoryItem,
+  updateInventoryStock,
+  deleteInventoryItem
+} = require('../../controllers/centerAdmin/centerAdminController');
+
 const {
   getWeeklyOrders,
   getOrderStatusDistribution,
@@ -159,5 +167,11 @@ router.put('/support/tickets/:ticketId/assign', assignTicket);
 router.post('/support/tickets/:ticketId/messages', addMessageToTicket);
 router.put('/support/tickets/:ticketId/escalate', escalateTicket);
 router.put('/support/tickets/:ticketId/resolve', resolveTicket);
+
+// Inventory routes
+router.get('/inventory', getInventory);
+router.post('/inventory', addInventoryItem);
+router.put('/inventory/:itemId/stock', updateInventoryStock);
+router.delete('/inventory/:itemId', deleteInventoryItem);
 
 module.exports = router;
