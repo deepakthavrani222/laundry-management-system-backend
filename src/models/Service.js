@@ -1,6 +1,13 @@
 const mongoose = require('mongoose')
 
 const serviceSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    index: true
+  },
+  
   name: {
     type: String,
     required: [true, 'Service name is required'],

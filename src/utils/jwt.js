@@ -65,8 +65,8 @@ const verifyPasswordResetToken = (token) => {
 };
 
 // Generate access token for authentication
-// For admin users, includes assignedBranch in token
-const generateAccessToken = (userId, email, role = 'customer', assignedBranch = null) => {
+// For admin users, includes assignedBranch and tenancy in token
+const generateAccessToken = (userId, email, role = 'customer', assignedBranch = null, tenancyId = null) => {
   const payload = { 
     userId, 
     email, 
@@ -77,6 +77,11 @@ const generateAccessToken = (userId, email, role = 'customer', assignedBranch = 
   // Include assignedBranch for admin users
   if (role === 'admin' && assignedBranch) {
     payload.assignedBranch = assignedBranch;
+  }
+  
+  // Include tenancy for multi-tenant support
+  if (tenancyId) {
+    payload.tenancyId = tenancyId;
   }
   
   return generateToken(payload, process.env.JWT_EXPIRE || '7d');

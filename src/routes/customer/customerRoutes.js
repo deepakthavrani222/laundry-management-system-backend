@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect, requireEmailVerification } = require('../../middlewares/auth');
+const { injectTenancyFromUser } = require('../../middlewares/tenancyMiddleware');
 const {
   getAddresses,
   getAddress,
@@ -35,8 +36,9 @@ const { addressValidation, validate } = require('../../utils/validation');
 
 const router = express.Router();
 
-// Apply authentication to all routes
+// Apply authentication and tenancy injection to all routes
 router.use(protect);
+router.use(injectTenancyFromUser);
 
 // Address routes
 router.route('/addresses')

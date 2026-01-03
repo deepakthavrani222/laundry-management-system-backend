@@ -2,6 +2,8 @@ const Order = require('../models/Order')
 const User = require('../models/User')
 const Branch = require('../models/Branch')
 const AuditLog = require('../models/AuditLog')
+const Tenancy = require('../models/Tenancy')
+const { TenancyPayment } = require('../models/TenancyBilling')
 const { validationResult } = require('express-validator')
 
 const centerAdminDashboardController = {
@@ -34,6 +36,7 @@ const centerAdminDashboardController = {
       // Parallel data fetching for better performance
       const [
         totalStats,
+        tenancyStats,
         recentOrders,
         topBranches,
         revenueData,
@@ -44,6 +47,7 @@ const centerAdminDashboardController = {
         systemHealth
       ] = await Promise.all([
         centerAdminDashboardController.getTotalStats(startDate),
+        centerAdminDashboardController.getTenancyStats(startDate),
         centerAdminDashboardController.getRecentOrders(10),
         centerAdminDashboardController.getTopBranches(startDate, 5),
         centerAdminDashboardController.getRevenueData(startDate),
@@ -58,6 +62,7 @@ const centerAdminDashboardController = {
         success: true,
         data: {
           overview: totalStats,
+          tenancies: tenancyStats,
           recentOrders,
           topBranches,
           revenue: revenueData,
@@ -136,6 +141,50 @@ const centerAdminDashboardController = {
         revenue: revenueGrowth,
         customers: customerGrowth
       }
+    }
+  },
+
+  // Get tenancy statistics
+  getTenancyStats: async function(startDate) {
+    try {
+      const [
+        totalTenancies,
+        activeTenancies,
+        newTenancies,
+        tenanciesByPlan,
+        platformRevenue
+      ] = await Promise.all([
+        Tenancy.countDocuments(),
+        Tenancy.countDocuments({ status: 'active' }),
+        Tenancy.countDocuments({ createdAt: { $gte: startDate } }),
+        Tenancy.aggregate([
+          { $group: { _id: '$subscription.plan', count: { $sum: 1 } } }
+        ]),
+        TenancyPayment.aggregate([
+          { $match: { status: 'completed', createdAt: { $gte: startDate } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ])
+      ]);
+
+      return {
+        total: totalTenancies,
+        active: activeTenancies,
+        new: newTenancies,
+        platformRevenue: platformRevenue[0]?.total || 0,
+        byPlan: tenanciesByPlan.reduce((acc, item) => {
+          acc[item._id || 'free'] = item.count;
+          return acc;
+        }, {})
+      };
+    } catch (error) {
+      console.error('Get tenancy stats error:', error);
+      return {
+        total: 0,
+        active: 0,
+        new: 0,
+        platformRevenue: 0,
+        byPlan: {}
+      };
     }
   },
 

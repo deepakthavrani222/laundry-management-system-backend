@@ -2,15 +2,21 @@ const mongoose = require('mongoose');
 const { ORDER_STATUS, PAYMENT_METHODS } = require('../config/constants');
 
 const orderSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    required: true,
+    index: true
+  },
+  
   orderNumber: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   // Barcode for order tracking and scanning
   barcode: {
     type: String,
-    unique: true,
     sparse: true
   },
   barcodeGeneratedAt: {

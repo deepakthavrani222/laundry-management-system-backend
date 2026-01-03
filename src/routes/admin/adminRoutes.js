@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect } = require('../../middlewares/auth');
+const { injectTenancyFromUser } = require('../../middlewares/tenancyMiddleware');
 const {
   getDashboard,
   getAllOrders,
@@ -78,10 +79,14 @@ const {
   updateBranchDeliveryPricing
 } = require('../../controllers/admin/deliveryPricingController');
 
+// Branding routes for multi-tenant support
+const brandingRoutes = require('./brandingRoutes');
+
 const router = express.Router();
 
-// Apply authentication
+// Apply authentication and tenancy injection
 router.use(protect);
+router.use(injectTenancyFromUser);
 
 // Dashboard routes
 router.get('/dashboard', getDashboard);
@@ -173,5 +178,8 @@ router.get('/inventory', getInventory);
 router.post('/inventory', addInventoryItem);
 router.put('/inventory/:itemId/stock', updateInventoryStock);
 router.delete('/inventory/:itemId', deleteInventoryItem);
+
+// Branding routes (multi-tenant)
+router.use('/tenancy', brandingRoutes);
 
 module.exports = router;

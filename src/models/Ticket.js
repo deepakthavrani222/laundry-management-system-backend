@@ -2,6 +2,13 @@ const mongoose = require('mongoose');
 const { TICKET_STATUS, TICKET_PRIORITY, TICKET_CATEGORIES } = require('../config/constants');
 
 const ticketSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    index: true
+  },
+  
   ticketNumber: {
     type: String,
     unique: true

@@ -2,6 +2,14 @@ const mongoose = require('mongoose');
 const { STAFF_ROLES } = require('../config/constants');
 
 const staffSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    required: true,
+    index: true
+  },
+  
   name: {
     type: String,
     required: [true, 'Staff name is required'],

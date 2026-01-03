@@ -20,6 +20,14 @@ const staffSchema = new mongoose.Schema({
 })
 
 const branchSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    required: true,
+    index: true
+  },
+  
   name: {
     type: String,
     required: [true, 'Branch name is required'],

@@ -2,6 +2,14 @@ const mongoose = require('mongoose');
 const { INVENTORY_ITEMS } = require('../config/constants');
 
 const inventorySchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    required: true,
+    index: true
+  },
+  
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',

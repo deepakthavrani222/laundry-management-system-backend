@@ -5,6 +5,7 @@ const LogisticsPartner = require('../../models/LogisticsPartner');
 const Ticket = require('../../models/Ticket');
 const Refund = require('../../models/Refund');
 const OrderService = require('../../services/orderService');
+const { addTenancyFilter } = require('../../middlewares/tenancyMiddleware');
 const { 
   sendSuccess, 
   sendError, 
@@ -22,6 +23,9 @@ const getDashboard = asyncHandler(async (req, res) => {
   const startOfDay = new Date(today.setHours(0, 0, 0, 0));
   const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
+  // Base query with tenancy filter
+  const baseQuery = addTenancyFilter({}, req.tenancyId);
+
   // Get dashboard metrics
   const [
     totalOrders,
@@ -33,20 +37,20 @@ const getDashboard = asyncHandler(async (req, res) => {
     pendingComplaints,
     totalBranches
   ] = await Promise.all([
-    Order.countDocuments(),
-    Order.countDocuments({ createdAt: { $gte: startOfDay, $lte: endOfDay } }),
-    Order.countDocuments({ 
+    Order.countDocuments(baseQuery),
+    Order.countDocuments(addTenancyFilter({ createdAt: { $gte: startOfDay, $lte: endOfDay } }, req.tenancyId)),
+    Order.countDocuments(addTenancyFilter({ 
       status: { $in: [ORDER_STATUS.PLACED, ORDER_STATUS.ASSIGNED_TO_BRANCH] }
-    }),
-    Order.countDocuments({ isExpress: true, status: { $ne: ORDER_STATUS.DELIVERED } }),
-    User.countDocuments({ role: USER_ROLES.CUSTOMER }),
-    User.countDocuments({ role: USER_ROLES.CUSTOMER, isActive: true }),
-    Ticket.countDocuments({ status: { $in: [TICKET_STATUS.OPEN, TICKET_STATUS.IN_PROGRESS] } }),
-    Branch.countDocuments({ isActive: true })
+    }, req.tenancyId)),
+    Order.countDocuments(addTenancyFilter({ isExpress: true, status: { $ne: ORDER_STATUS.DELIVERED } }, req.tenancyId)),
+    User.countDocuments(addTenancyFilter({ role: USER_ROLES.CUSTOMER }, req.tenancyId)),
+    User.countDocuments(addTenancyFilter({ role: USER_ROLES.CUSTOMER, isActive: true }, req.tenancyId)),
+    Ticket.countDocuments(addTenancyFilter({ status: { $in: [TICKET_STATUS.OPEN, TICKET_STATUS.IN_PROGRESS] } }, req.tenancyId)),
+    Branch.countDocuments(addTenancyFilter({ isActive: true }, req.tenancyId))
   ]);
 
   // Get recent orders
-  const recentOrders = await Order.find()
+  const recentOrders = await Order.find(baseQuery)
     .populate('customer', 'name phone isVIP')
     .populate('branch', 'name code')
     .sort({ createdAt: -1 })
@@ -55,6 +59,7 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   // Get order status distribution
   const statusDistribution = await Order.aggregate([
+    { $match: baseQuery },
     {
       $group: {
         _id: '$status',
@@ -98,8 +103,8 @@ const getAllOrders = asyncHandler(async (req, res) => {
 
   const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
 
-  // Build query
-  const query = {};
+  // Build query with tenancy filter
+  const query = addTenancyFilter({}, req.tenancyId);
   
   if (status) query.status = status;
   if (branch) query.branch = branch;

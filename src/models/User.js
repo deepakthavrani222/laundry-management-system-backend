@@ -86,6 +86,14 @@ const adminPermissionsSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    index: true
+    // Required for admin/staff, optional for customers (they belong to tenancy via orders)
+  },
+  
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -95,7 +103,6 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'Email is required'],
-    unique: true,
     lowercase: true,
     trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
@@ -103,7 +110,6 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    unique: true,
     match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number']
   },
   password: {
@@ -114,7 +120,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'staff', 'customer'],  // Simplified roles (superadmin is separate model)
+    enum: ['admin', 'staff', 'customer'],  // admin = laundry admin, staff = laundry staff
     default: 'customer'
   },
   isActive: {

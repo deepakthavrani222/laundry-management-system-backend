@@ -8,7 +8,7 @@ const auditLogSchema = new mongoose.Schema({
   
   // Action Details
   action: { type: String, required: true }, // login, logout, create_order, update_branch, etc.
-  category: { type: String, required: true, enum: ['auth', 'orders', 'branches', 'users', 'finances', 'financial', 'settings', 'system', 'audit', 'risk_management', 'analytics', 'pricing', 'logistics'] },
+  category: { type: String, required: true, enum: ['auth', 'orders', 'branches', 'users', 'finances', 'financial', 'settings', 'system', 'audit', 'risk_management', 'analytics', 'pricing', 'logistics', 'tenancies', 'branding'] },
   description: { type: String, required: true },
   
   // Request Information

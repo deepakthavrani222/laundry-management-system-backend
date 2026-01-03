@@ -33,6 +33,10 @@ const superAdminOrdersRoutes = require('./routes/superAdminOrders');
 const superAdminUsersRoutes = require('./routes/superAdminUsers');
 const superAdminAdminsRoutes = require('./routes/superAdminAdmins');
 const superAdminCustomersRoutes = require('./routes/superAdminCustomers');
+const superAdminTenancyRoutes = require('./routes/superAdminTenancies');
+const superAdminInvitationRoutes = require('./routes/superAdminInvitations');
+const superAdminBillingRoutes = require('./routes/superAdminBilling');
+const superAdminTenancyAnalyticsRoutes = require('./routes/superAdminTenancyAnalytics');
 
 const servicePricesRoutes = require('./routes/servicePrices');
 const serviceItemsRoutes = require('./routes/serviceItems');
@@ -41,6 +45,11 @@ const adminServiceRoutes = require('./routes/admin/serviceRoutes');
 const branchServiceRoutes = require('./routes/admin/branchServiceRoutes');
 const barcodeRoutes = require('./routes/barcode');
 const publicRoutes = require('./routes/publicRoutes');
+const tenancyPublicRoutes = require('./routes/tenancyPublicRoutes');
+const invitationPublicRoutes = require('./routes/invitationPublicRoutes');
+
+// Subdomain routing middleware
+const { subdomainRouter } = require('./middlewares/subdomainMiddleware');
 
 const app = express();
 
@@ -98,6 +107,9 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Subdomain routing - extract tenancy from subdomain
+app.use(subdomainRouter);
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -141,6 +153,10 @@ app.use('/api/superadmin/orders', superAdminOrdersRoutes);
 app.use('/api/superadmin/users', superAdminUsersRoutes);
 app.use('/api/superadmin/admins', superAdminAdminsRoutes);
 app.use('/api/superadmin/customers', superAdminCustomersRoutes);
+app.use('/api/superadmin/tenancies', superAdminTenancyRoutes);
+app.use('/api/superadmin/invitations', superAdminInvitationRoutes);
+app.use('/api/superadmin/billing', superAdminBillingRoutes);
+app.use('/api/superadmin/tenancy-analytics', superAdminTenancyAnalyticsRoutes);
 app.use('/api/superadmin/services', adminServiceRoutes);
 app.use('/api/superadmin/branch-services', branchServiceRoutes);
 
@@ -159,6 +175,12 @@ app.use('/api/barcode', barcodeRoutes);
 
 // Public routes (no auth required - for QR code scanning)
 app.use('/api/orders', publicRoutes);
+
+// Tenancy public routes (no auth required - for branding/theming)
+app.use('/api/tenancy', tenancyPublicRoutes);
+
+// Invitation public routes (no auth required - for accepting invitations)
+app.use('/api/invitations', invitationPublicRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

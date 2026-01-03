@@ -1,6 +1,13 @@
 const mongoose = require('mongoose')
 
 const servicePriceSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    index: true
+  },
+  
   category: {
     type: String,
     required: true,

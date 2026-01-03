@@ -9,7 +9,7 @@ const crypto = require('crypto');
 // Register new user
 const register = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, tenancySlug } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -34,14 +34,29 @@ const register = async (req, res) => {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
-    const user = new User({
+    // Create user data
+    const userData = {
       name,
       email,
       phone,
       password: hashedPassword,
       isEmailVerified: false
-    });
+    };
+
+    // If tenancy slug provided, associate customer with tenancy
+    if (tenancySlug) {
+      const Tenancy = require('../models/Tenancy');
+      const tenancy = await Tenancy.findOne({ 
+        $or: [{ slug: tenancySlug }, { subdomain: tenancySlug }],
+        status: 'active'
+      });
+      if (tenancy) {
+        userData.tenancy = tenancy._id;
+      }
+    }
+
+    // Create user
+    const user = new User(userData);
 
     // Generate email verification token
     const verificationToken = generateEmailVerificationToken(user._id, email);
@@ -196,7 +211,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Find user and include password
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password').populate('tenancy', 'name slug subdomain branding status');
     
     if (!user) {
       return res.status(401).json({
@@ -223,23 +238,34 @@ const login = async (req, res) => {
       });
     }
 
-    // Validate admin has assigned branch
-    if (user.role === 'admin' && !user.assignedBranch) {
+    // Check tenancy status for admin users
+    if (user.role === 'admin' && user.tenancy) {
+      if (user.tenancy.status !== 'active') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your laundry portal is currently inactive. Please contact support.'
+        });
+      }
+    }
+
+    // Validate admin has assigned branch (for legacy support)
+    if (user.role === 'admin' && !user.assignedBranch && !user.tenancy) {
       return res.status(400).json({
         success: false,
-        message: 'Admin account must have an assigned branch. Please contact SuperAdmin.'
+        message: 'Admin account must have an assigned branch or tenancy. Please contact SuperAdmin.'
       });
     }
 
     // Update last login
     await user.updateLastLogin();
 
-    // Generate access token (include assignedBranch for admin)
+    // Generate access token (include assignedBranch and tenancy for admin)
     const accessToken = generateAccessToken(
       user._id, 
       user.email, 
       user.role, 
-      user.assignedBranch
+      user.assignedBranch,
+      user.tenancy?._id
     );
 
     // Set HTTP-only cookie
@@ -258,6 +284,13 @@ const login = async (req, res) => {
           role: user.role,
           permissions: user.permissions || {},
           assignedBranch: user.assignedBranch,
+          tenancy: user.tenancy ? {
+            _id: user.tenancy._id,
+            name: user.tenancy.name,
+            slug: user.tenancy.slug,
+            subdomain: user.tenancy.subdomain,
+            branding: user.tenancy.branding
+          } : null,
           isEmailVerified: user.isEmailVerified,
           isActive: user.isActive,
           lastLogin: user.lastLogin

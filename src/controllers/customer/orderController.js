@@ -176,6 +176,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Create order
   const order = await Order.create({
+    tenancy: req.tenancyId || req.user.tenancy, // Add tenancy from middleware or user
     orderNumber,
     customer: req.user._id,
     branch: branch._id,

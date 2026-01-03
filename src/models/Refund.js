@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const { REFUND_STATUS, REFUND_TYPES } = require('../config/constants');
 
 const refundSchema = new mongoose.Schema({
+  // Tenancy Reference (Multi-tenant support)
+  tenancy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy',
+    index: true
+  },
   refundNumber: {
     type: String,
     unique: true,
