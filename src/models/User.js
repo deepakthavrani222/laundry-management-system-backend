@@ -32,21 +32,39 @@ const adminPermissionsSchema = new mongoose.Schema({
     view: { type: Boolean, default: false },
     create: { type: Boolean, default: false },
     update: { type: Boolean, default: false },
-    delete: { type: Boolean, default: false }
+    delete: { type: Boolean, default: false },
+    restock: { type: Boolean, default: false },
+    writeOff: { type: Boolean, default: false }
   },
   services: {
     view: { type: Boolean, default: false },
     create: { type: Boolean, default: false },
     update: { type: Boolean, default: false },
     delete: { type: Boolean, default: false },
-    toggle: { type: Boolean, default: false }
+    toggle: { type: Boolean, default: false },
+    updatePricing: { type: Boolean, default: false }
+  },
+  customers: {
+    view: { type: Boolean, default: false },
+    create: { type: Boolean, default: false },
+    update: { type: Boolean, default: false },
+    delete: { type: Boolean, default: false }
+  },
+  performance: {
+    view: { type: Boolean, default: false },
+    create: { type: Boolean, default: false },
+    update: { type: Boolean, default: false },
+    delete: { type: Boolean, default: false },
+    export: { type: Boolean, default: false }
   },
   analytics: {
     view: { type: Boolean, default: false }
   },
   settings: {
     view: { type: Boolean, default: false },
-    update: { type: Boolean, default: false }
+    create: { type: Boolean, default: false },
+    update: { type: Boolean, default: false },
+    delete: { type: Boolean, default: false }
   }
 }, { _id: false });
 
@@ -238,10 +256,12 @@ userSchema.statics.getDefaultAdminPermissions = function() {
   return {
     orders: { view: true, create: true, update: true, delete: true, assign: true, cancel: true, process: true },
     staff: { view: true, create: true, update: true, delete: true, assignShift: true, manageAttendance: true },
-    inventory: { view: true, create: true, update: true, delete: true },
-    services: { view: true, create: true, update: true, delete: true, toggle: true },
+    inventory: { view: true, create: true, update: true, delete: true, restock: true, writeOff: true },
+    services: { view: true, create: true, update: true, delete: true, toggle: true, updatePricing: true },
+    customers: { view: true, create: true, update: true, delete: true },
+    performance: { view: true, create: true, update: true, delete: true, export: true },
     analytics: { view: true },
-    settings: { view: true, update: true }
+    settings: { view: true, create: true, update: true, delete: true }
   };
 };
 
