@@ -50,6 +50,15 @@ const adminPermissionsSchema = new mongoose.Schema({
     update: { type: Boolean, default: false },
     delete: { type: Boolean, default: false }
   },
+  tickets: {
+    view: { type: Boolean, default: false },
+    create: { type: Boolean, default: false },
+    update: { type: Boolean, default: false },
+    delete: { type: Boolean, default: false },
+    assign: { type: Boolean, default: false },
+    resolve: { type: Boolean, default: false },
+    escalate: { type: Boolean, default: false }
+  },
   performance: {
     view: { type: Boolean, default: false },
     create: { type: Boolean, default: false },
@@ -259,6 +268,7 @@ userSchema.statics.getDefaultAdminPermissions = function() {
     inventory: { view: true, create: true, update: true, delete: true, restock: true, writeOff: true },
     services: { view: true, create: true, update: true, delete: true, toggle: true, updatePricing: true },
     customers: { view: true, create: true, update: true, delete: true },
+    tickets: { view: true, create: true, update: true, delete: true, assign: true, resolve: true, escalate: true },
     performance: { view: true, create: true, update: true, delete: true, export: true },
     analytics: { view: true },
     settings: { view: true, create: true, update: true, delete: true }
