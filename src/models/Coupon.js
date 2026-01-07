@@ -4,9 +4,22 @@ const couponSchema = new mongoose.Schema({
   tenancy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenancy',
-    required: true,
+    required: function() { return !this.isGlobal; }, // Only required if not global
     index: true
   },
+  
+  // Global coupons (created by superadmin)
+  isGlobal: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Applicable tenancies for global coupons
+  applicableTenancies: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenancy'
+  }],
+  
   code: {
     type: String,
     required: true,
@@ -72,16 +85,54 @@ const couponSchema = new mongoose.Schema({
     type: String,
     default: 'all'
   }],
+  
+  // Analytics
+  totalSavings: {
+    type: Number,
+    default: 0
+  },
+  totalOrders: {
+    type: Number,
+    default: 0
+  },
+  
+  // Audit
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    refPath: 'createdByModel'
+  },
+  createdByModel: {
+    type: String,
+    enum: ['User', 'SuperAdmin'],
+    default: 'User'
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'updatedByModel'
+  },
+  updatedByModel: {
+    type: String,
+    enum: ['User', 'SuperAdmin']
   }
 }, {
   timestamps: true
 });
 
-// Compound index for unique code per tenancy
-couponSchema.index({ tenancy: 1, code: 1 }, { unique: true });
+// Compound index for unique code per tenancy (for tenancy-specific coupons)
+couponSchema.index({ tenancy: 1, code: 1 }, { 
+  unique: true, 
+  partialFilterExpression: { isGlobal: { $ne: true } }
+});
+
+// Index for global coupons
+couponSchema.index({ isGlobal: 1, code: 1 }, { 
+  unique: true, 
+  partialFilterExpression: { isGlobal: true }
+});
+
+// Additional indexes
+couponSchema.index({ isGlobal: 1, isActive: 1 });
+couponSchema.index({ startDate: 1, endDate: 1 });
 
 // Check if coupon is valid
 couponSchema.methods.isValid = function(orderValue = 0, userId = null) {
@@ -147,6 +198,8 @@ couponSchema.methods.calculateDiscount = function(orderValue) {
 // Record usage
 couponSchema.methods.recordUsage = async function(userId, orderId = null, discountAmount = 0) {
   this.usedCount += 1;
+  this.totalSavings += discountAmount;
+  this.totalOrders += 1;
   
   const userIndex = this.userUsage.findIndex(u => u.user.toString() === userId.toString());
   if (userIndex >= 0) {

@@ -218,9 +218,67 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
+// Protect SuperAdmin routes - require SuperAdmin authentication only
+const protectSuperAdmin = async (req, res, next) => {
+  try {
+    const token = getTokenFromRequest(req);
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
+    }
+
+    try {
+      const decoded = verifyToken(token);
+      
+      // Check if it's a superadmin token
+      if (!decoded.adminId || decoded.role !== 'superadmin') {
+        return res.status(403).json({
+          success: false,
+          message: 'SuperAdmin access required'
+        });
+      }
+      
+      const admin = await SuperAdmin.findById(decoded.adminId).select('-password');
+      
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          message: 'SuperAdmin not found'
+        });
+      }
+
+      if (!admin.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: 'SuperAdmin account is deactivated'
+        });
+      }
+
+      req.user = admin;
+      req.isSuperAdmin = true;
+      next();
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+  } catch (error) {
+    console.error('SuperAdmin auth middleware error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error in authentication'
+    });
+  }
+};
+
 module.exports = {
   protect,
   protectAny,
+  protectSuperAdmin,
   restrictTo,
   requirePermission,
   requireEmailVerification,

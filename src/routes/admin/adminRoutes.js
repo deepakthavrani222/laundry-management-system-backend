@@ -88,6 +88,11 @@ const {
 const brandingRoutes = require('./brandingRoutes');
 const couponRoutes = require('./couponRoutes');
 
+// Promotional feature routes
+const discountRoutes = require('./discountRoutes');
+const referralRoutes = require('./referralRoutes');
+const loyaltyRoutes = require('./loyaltyRoutes');
+
 const router = express.Router();
 
 // Apply authentication and tenancy injection
@@ -193,7 +198,16 @@ router.delete('/inventory/:itemId', deleteInventoryItem);
 // Branding routes (multi-tenant)
 router.use('/tenancy', brandingRoutes);
 
+// Branch management routes (new - allows admins to create branches)
+const adminBranchRoutes = require('./adminBranches');
+router.use('/branches-management', adminBranchRoutes);
+
 // Coupon routes
 router.use('/coupons', couponRoutes);
+
+// Promotional feature routes
+router.use('/discounts', discountRoutes);
+router.use('/referrals', referralRoutes);
+router.use('/loyalty', loyaltyRoutes);
 
 module.exports = router;

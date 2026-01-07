@@ -37,6 +37,9 @@ const superAdminTenancyRoutes = require('./routes/superAdminTenancies');
 const superAdminInvitationRoutes = require('./routes/superAdminInvitations');
 const superAdminBillingRoutes = require('./routes/superAdminBilling');
 const superAdminTenancyAnalyticsRoutes = require('./routes/superAdminTenancyAnalytics');
+const superAdminPromotionalRoutes = require('./routes/superAdminPromotional');
+const superAdminCampaignRoutes = require('./routes/superAdminCampaigns');
+const adminCampaignRoutes = require('./routes/adminCampaigns');
 
 const servicePricesRoutes = require('./routes/servicePrices');
 const serviceItemsRoutes = require('./routes/serviceItems');
@@ -65,7 +68,10 @@ const allowedOrigins = [
   'http://localhost:3002',
   'http://localhost:3003',
   process.env.FRONTEND_URL,
-  process.env.SUPERADMIN_URL
+  process.env.SUPERADMIN_URL,
+  // Allow all subdomains of your domain
+  /^https:\/\/[\w-]+\.laundry$/,
+  /^http:\/\/[\w-]+\.laundry$/
 ].filter(Boolean);
 
 app.use(cors({
@@ -73,11 +79,22 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check if origin matches allowed patterns
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins in production for now
+      callback(null, false);
     }
   },
   credentials: true  // Allow cookies to be sent
@@ -157,6 +174,9 @@ app.use('/api/superadmin/tenancies', superAdminTenancyRoutes);
 app.use('/api/superadmin/invitations', superAdminInvitationRoutes);
 app.use('/api/superadmin/billing', superAdminBillingRoutes);
 app.use('/api/superadmin/tenancy-analytics', superAdminTenancyAnalyticsRoutes);
+app.use('/api/superadmin/promotional', superAdminPromotionalRoutes);
+app.use('/api/superadmin/campaigns', superAdminCampaignRoutes);
+app.use('/api/admin/campaigns', adminCampaignRoutes);
 app.use('/api/superadmin/services', adminServiceRoutes);
 app.use('/api/superadmin/branch-services', branchServiceRoutes);
 
