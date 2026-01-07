@@ -41,6 +41,11 @@ const superAdminPromotionalRoutes = require('./routes/superAdminPromotional');
 const superAdminCampaignRoutes = require('./routes/superAdminCampaigns');
 const adminCampaignRoutes = require('./routes/adminCampaigns');
 
+// Banner routes
+const adminBannerRoutes = require('./routes/admin/bannerRoutes');
+const superAdminBannerRoutes = require('./routes/superAdmin/bannerRoutes');
+const customerBannerRoutes = require('./routes/customer/bannerRoutes');
+
 const servicePricesRoutes = require('./routes/servicePrices');
 const serviceItemsRoutes = require('./routes/serviceItems');
 const deliveryRoutes = require('./routes/delivery');
@@ -177,6 +182,9 @@ app.use('/api/superadmin/tenancy-analytics', superAdminTenancyAnalyticsRoutes);
 app.use('/api/superadmin/promotional', superAdminPromotionalRoutes);
 app.use('/api/superadmin/campaigns', superAdminCampaignRoutes);
 app.use('/api/admin/campaigns', adminCampaignRoutes);
+app.use('/api/admin/banners', adminBannerRoutes);
+app.use('/api/superadmin/banners', superAdminBannerRoutes);
+app.use('/api/customer/banners', customerBannerRoutes);
 app.use('/api/superadmin/services', adminServiceRoutes);
 app.use('/api/superadmin/branch-services', branchServiceRoutes);
 
