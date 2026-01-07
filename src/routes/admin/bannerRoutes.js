@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bannerController = require('../../controllers/admin/bannerController');
-const { protect, authorize } = require('../../middleware/auth');
+const { protect, authorize } = require('../../middlewares/auth');
 const { upload } = require('../../services/imageUploadService');
 
 // Apply authentication and authorization middleware

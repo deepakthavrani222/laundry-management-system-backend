@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bannerController = require('../../controllers/superAdmin/bannerController');
-const { protect, authorize } = require('../../middleware/auth');
+const { protect, authorize } = require('../../middlewares/auth');
 
 // Apply authentication and authorization middleware
 router.use(protect);
