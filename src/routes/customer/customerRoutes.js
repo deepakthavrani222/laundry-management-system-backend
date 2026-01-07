@@ -37,6 +37,34 @@ const {
   getAvailableCoupons,
   removeCoupon
 } = require('../../controllers/customer/couponController');
+const {
+  getLoyaltyBalance,
+  getLoyaltyTransactions,
+  enrollInLoyalty,
+  redeemPoints,
+  getAvailableRewards,
+  getTierInfo
+} = require('../../controllers/customer/loyaltyController');
+const {
+  getReferralCode,
+  trackReferralShare,
+  getReferralStats,
+  applyReferralCode
+} = require('../../controllers/customer/referralController');
+const {
+  getWalletBalance,
+  getWalletTransactions,
+  addMoneyToWallet
+} = require('../../controllers/customer/walletController');
+const {
+  getApplicableDiscounts,
+  getActiveDiscounts
+} = require('../../controllers/customer/discountController');
+const {
+  getActiveCampaigns,
+  getCampaignDetails,
+  claimCampaignOffer
+} = require('../../controllers/customer/campaignController');
 const { addressValidation, validate } = require('../../utils/validation');
 
 const router = express.Router();
@@ -87,6 +115,34 @@ router.post('/tickets/:ticketId/feedback', submitFeedback);
 router.post('/coupons/validate', validateCoupon);
 router.get('/coupons/available', getAvailableCoupons);
 router.post('/coupons/remove', removeCoupon);
+
+// Loyalty routes
+router.get('/loyalty/balance', getLoyaltyBalance);
+router.get('/loyalty/transactions', getLoyaltyTransactions);
+router.post('/loyalty/enroll', enrollInLoyalty);
+router.post('/loyalty/redeem', redeemPoints);
+router.get('/loyalty/rewards', getAvailableRewards);
+router.get('/loyalty/tier', getTierInfo);
+
+// Referral routes
+router.get('/referrals/code', getReferralCode);
+router.post('/referrals/share', trackReferralShare);
+router.get('/referrals/stats', getReferralStats);
+router.post('/referrals/apply', applyReferralCode);
+
+// Wallet routes
+router.get('/wallet/balance', getWalletBalance);
+router.get('/wallet/transactions', getWalletTransactions);
+router.post('/wallet/add', addMoneyToWallet);
+
+// Discount routes
+router.post('/discounts/applicable', getApplicableDiscounts);
+router.get('/discounts/active', getActiveDiscounts);
+
+// Campaign routes
+router.get('/campaigns/active', getActiveCampaigns);
+router.get('/campaigns/:campaignId', getCampaignDetails);
+router.post('/campaigns/:campaignId/claim', claimCampaignOffer);
 
 // Profile route
 router.get('/profile', (req, res) => {
