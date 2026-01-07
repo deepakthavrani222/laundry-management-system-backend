@@ -115,8 +115,18 @@ const restrictTo = (...roles) => {
   return (req, res, next) => {
     const userRole = req.user.role;
     
+    // Debug logging
+    console.log('🔍 restrictTo middleware:', {
+      userRole,
+      requiredRoles: roles,
+      isSuperAdmin: req.isSuperAdmin,
+      userId: req.user._id,
+      userEmail: req.user.email
+    });
+    
     // SuperAdmin has access to everything
     if (req.isSuperAdmin) {
+      console.log('✅ SuperAdmin access granted');
       return next();
     }
     
@@ -136,18 +146,23 @@ const restrictTo = (...roles) => {
       }
     }
     
+    console.log('🔍 Normalized roles:', normalizedRoles);
+    
     // If superadmin is in allowed roles, allow it
     if (normalizedRoles.includes('superadmin') && req.isSuperAdmin) {
+      console.log('✅ SuperAdmin role access granted');
       return next();
     }
     
     if (!normalizedRoles.includes(userRole)) {
+      console.log('❌ Access denied:', { userRole, normalizedRoles });
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions.'
       });
     }
     
+    console.log('✅ Role access granted');
     next();
   };
 };
