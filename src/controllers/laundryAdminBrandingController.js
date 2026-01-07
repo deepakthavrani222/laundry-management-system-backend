@@ -4,14 +4,30 @@ const brandingController = {
   // Get current branding
   getBranding: async (req, res) => {
     try {
+      console.log('=== GET BRANDING REQUEST ===');
+      console.log('User:', req.user.email, 'Role:', req.user.role);
+      console.log('User tenancy:', req.user.tenancy);
+      
+      // Check if user has tenancy
+      if (!req.user.tenancy) {
+        console.log('❌ User has no tenancy assigned');
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have a tenancy assigned. Please contact support.'
+        });
+      }
+      
       const tenancy = await Tenancy.findById(req.user.tenancy);
       
       if (!tenancy) {
+        console.log('❌ Tenancy not found:', req.user.tenancy);
         return res.status(404).json({
           success: false,
           message: 'Tenancy not found'
         });
       }
+      
+      console.log('✅ Tenancy found:', tenancy.name);
       
       res.json({
         success: true,
@@ -35,13 +51,25 @@ const brandingController = {
       const { branding } = req.body;
       
       console.log('=== UPDATE BRANDING REQUEST ===');
+      console.log('User:', req.user.email, 'Role:', req.user.role);
+      console.log('User tenancy:', req.user.tenancy);
       console.log('Raw body:', JSON.stringify(req.body, null, 2));
       console.log('Branding object:', JSON.stringify(branding, null, 2));
       console.log('landingPageTemplate from request:', branding?.landingPageTemplate);
       
+      // Check if user has tenancy
+      if (!req.user.tenancy) {
+        console.log('❌ User has no tenancy assigned');
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have a tenancy assigned. Please contact support.'
+        });
+      }
+      
       const tenancy = await Tenancy.findById(req.user.tenancy);
       
       if (!tenancy) {
+        console.log('❌ Tenancy not found:', req.user.tenancy);
         return res.status(404).json({
           success: false,
           message: 'Tenancy not found'
@@ -81,7 +109,7 @@ const brandingController = {
       
       await tenancy.save();
       
-      console.log('Saved template:', tenancy.branding?.landingPageTemplate);
+      console.log('✅ Saved template:', tenancy.branding?.landingPageTemplate);
       console.log('=== UPDATE COMPLETE ===');
       
       res.json({
