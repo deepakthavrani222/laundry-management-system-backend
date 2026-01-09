@@ -162,6 +162,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Version endpoint
+app.get('/version', (req, res) => {
+  res.status(200).json({
+    version: process.env.APP_VERSION || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/version', (req, res) => {
+  res.status(200).json({
+    version: process.env.APP_VERSION || 'unknown',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/addresses', addressRoutes);

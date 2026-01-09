@@ -59,9 +59,18 @@ const setupCronJobs = () => {
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  console.log(`📚 API docs: http://localhost:${PORT}/api`);
+  const APP_VERSION = process.env.APP_VERSION || 'unknown';
+  
+  console.log('='.repeat(60));
+  console.log(`🚀 Laundry Management System v${APP_VERSION}`);
+  console.log('='.repeat(60));
+  console.log(`📦 Version: ${APP_VERSION}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔌 Port: ${PORT}`);
+  console.log(`📍 Health: http://localhost:${PORT}/health`);
+  console.log(`📊 Version: http://localhost:${PORT}/version`);
+  console.log(`📚 API: http://localhost:${PORT}/api`);
+  console.log('='.repeat(60));
   
   // Setup cron jobs
   setupCronJobs();
