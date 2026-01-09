@@ -1,193 +1,288 @@
 const Banner = require('../../models/Banner');
-const Campaign = require('../../models/Campaign');
-const Coupon = require('../../models/Coupon');
-const Discount = require('../../models/Discount');
-const Referral = require('../../models/Referral');
-const LoyaltyProgram = require('../../models/LoyaltyProgram');
 
 /**
- * Get active banners for a specific page
- * @route GET /api/customer/banners
- * @access Public
+ * @route   GET /api/customer/banners/position/:position
+ * @desc    Get active banners for a specific position
+ * @access  Public
  */
-exports.getActiveBanners = async (req, res) => {
+exports.getBannersByPosition = async (req, res) => {
   try {
-    const { page, limit = 10 } = req.query;
-    const tenancyId = req.tenancyId;
-
-    if (!page) {
-      return res.status(400).json({
-        success: false,
-        message: 'Page parameter is required'
-      });
-    }
-
-    // Get active banners for this tenancy and page
-    const banners = await Banner.getActiveBanners(tenancyId, page, parseInt(limit));
-
-    // Populate linked promotion details
-    const bannersWithDetails = await Promise.all(
-      banners.map(async (banner) => {
-        const bannerObj = banner.toObject();
-        
-        if (banner.linkedPromotion?.promotionType && banner.linkedPromotion?.promotionId) {
-          try {
-            let promotionDetails = null;
-            
-            switch (banner.linkedPromotion.promotionType) {
-              case 'Campaign':
-                promotionDetails = await Campaign.findById(banner.linkedPromotion.promotionId)
-                  .select('name description startDate endDate discountType discountValue');
-                break;
-              case 'Coupon':
-                promotionDetails = await Coupon.findById(banner.linkedPromotion.promotionId)
-                  .select('code description discountType discountValue validFrom validUntil');
-                break;
-              case 'Discount':
-                promotionDetails = await Discount.findById(banner.linkedPromotion.promotionId)
-                  .select('name description discountType discountValue startDate endDate');
-                break;
-              case 'Referral':
-                promotionDetails = await Referral.findById(banner.linkedPromotion.promotionId)
-                  .select('name description referrerReward refereeReward');
-                break;
-              case 'LoyaltyProgram':
-                promotionDetails = await LoyaltyProgram.findById(banner.linkedPromotion.promotionId)
-                  .select('name description programType pointsPerRupee');
-                break;
-            }
-            
-            if (promotionDetails) {
-              bannerObj.linkedPromotion.details = promotionDetails;
-            }
-          } catch (error) {
-            console.error('Error fetching promotion details:', error);
-          }
-        }
-        
-        return bannerObj;
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      count: bannersWithDetails.length,
-      data: bannersWithDetails
-    });
-  } catch (error) {
-    console.error('Error fetching active banners:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching banners',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Record banner impression
- * @route POST /api/customer/banners/:id/impression
- * @access Public
- */
-exports.recordBannerImpression = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const tenancyId = req.tenancyId;
-
-    const banner = await Banner.findOne({
-      _id: id,
-      $or: [
-        { bannerScope: 'GLOBAL' },
-        { tenancyId, bannerScope: 'TENANT' }
-      ],
-      isActive: true
-    });
-
-    if (!banner) {
-      return res.status(404).json({
-        success: false,
-        message: 'Banner not found'
-      });
-    }
-
-    // Increment impressions
-    banner.analytics.impressions += 1;
-    await banner.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Impression recorded'
-    });
-  } catch (error) {
-    console.error('Error recording banner impression:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error recording impression',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Record banner click
- * @route POST /api/customer/banners/:id/click
- * @access Public
- */
-exports.recordBannerClick = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const tenancyId = req.tenancyId;
-
-    const banner = await Banner.findOne({
-      _id: id,
-      $or: [
-        { bannerScope: 'GLOBAL' },
-        { tenancyId, bannerScope: 'TENANT' }
-      ],
-      isActive: true
-    });
-
-    if (!banner) {
-      return res.status(404).json({
-        success: false,
-        message: 'Banner not found'
-      });
-    }
-
-    // Increment clicks
-    banner.analytics.clicks += 1;
+    const { position } = req.params;
+    const tenancyId = req.tenancyId; // From subdomain middleware
     
-    // Calculate CTR
-    if (banner.analytics.impressions > 0) {
-      banner.analytics.ctr = (banner.analytics.clicks / banner.analytics.impressions) * 100;
+    // Get banners for this position
+    const banners = await Banner.getActiveBannersByPosition(position, tenancyId);
+    
+    // Filter based on template type and position settings
+    const filteredBanners = banners.filter(banner => {
+      // Check responsive settings based on device (could be enhanced with user-agent detection)
+      return banner.isActive;
+    });
+    
+    // For SLIDER positions, return multiple banners
+    // For other positions, return only the highest priority banner
+    let result = filteredBanners;
+    
+    if (!position.includes('SLIDER') && !position.includes('CARD_GRID')) {
+      result = filteredBanners.slice(0, 1); // Only top priority banner
     }
     
-    await banner.save();
-
-    // Return linked promotion details for navigation
-    let promotionDetails = null;
-    if (banner.linkedPromotion?.promotionType && banner.linkedPromotion?.promotionId) {
-      promotionDetails = {
-        type: banner.linkedPromotion.promotionType,
-        id: banner.linkedPromotion.promotionId
-      };
-    }
-
-    res.status(200).json({
+    // Populate necessary fields
+    const populatedBanners = await Banner.populate(result, [
+      { path: 'template', select: 'name code type layout design settings responsive' },
+      { path: 'linkedCampaign', select: 'name description startDate endDate' }
+    ]);
+    
+    // Add cache control headers to prevent browser caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store'
+    });
+    
+    res.json({
       success: true,
-      message: 'Click recorded',
       data: {
-        actionType: banner.actionType,
-        actionUrl: banner.actionUrl,
-        linkedPromotion: promotionDetails
+        position,
+        banners: populatedBanners,
+        count: populatedBanners.length
       }
     });
   } catch (error) {
-    console.error('Error recording banner click:', error);
+    console.error('Error fetching banners by position:', error);
     res.status(500).json({
       success: false,
-      message: 'Error recording click',
-      error: error.message
+      message: 'Failed to fetch banners'
+    });
+  }
+};
+
+/**
+ * @route   POST /api/customer/banners/:id/impression
+ * @desc    Record banner impression
+ * @access  Public
+ */
+exports.recordImpression = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const banner = await Banner.findById(id);
+    
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    // Record impression
+    await banner.recordImpression();
+    
+    res.json({
+      success: true,
+      message: 'Impression recorded',
+      data: {
+        impressions: banner.analytics.impressions
+      }
+    });
+  } catch (error) {
+    console.error('Error recording impression:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record impression'
+    });
+  }
+};
+
+/**
+ * @route   POST /api/customer/banners/:id/click
+ * @desc    Record banner click
+ * @access  Public
+ */
+exports.recordClick = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const banner = await Banner.findById(id);
+    
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    // Record click
+    await banner.recordClick();
+    
+    // Return campaign link if available
+    const campaignLink = banner.cta?.link || '/offers';
+    
+    res.json({
+      success: true,
+      message: 'Click recorded',
+      data: {
+        clicks: banner.analytics.clicks,
+        redirectUrl: campaignLink
+      }
+    });
+  } catch (error) {
+    console.error('Error recording click:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record click'
+    });
+  }
+};
+
+/**
+ * @route   GET /api/customer/banners/page/:page
+ * @desc    Get all active banners for a page (all positions)
+ * @access  Public
+ */
+exports.getBannersByPage = async (req, res) => {
+  try {
+    const { page } = req.params; // e.g., 'HOME', 'SERVICES', 'OFFERS'
+    const tenancyId = req.tenancyId;
+    
+    // Get all positions for this page
+    const pagePositions = {
+      HOME: ['HOME_HERO_TOP', 'HOME_SLIDER_MID', 'HOME_STRIP_TOP', 'HOME_STRIP_BOTTOM', 'HOME_CARD_SIDEBAR'],
+      SERVICES: ['SERVICES_HERO_TOP', 'SERVICES_SLIDER_MID', 'SERVICES_CARD_GRID'],
+      OFFERS: ['OFFERS_HERO_TOP', 'OFFERS_SLIDER_MID', 'OFFERS_CARD_GRID'],
+      CHECKOUT: ['CHECKOUT_STRIP_TOP', 'CHECKOUT_CARD_SIDEBAR'],
+      DASHBOARD: ['DASHBOARD_HERO_TOP', 'DASHBOARD_CARD_GRID'],
+      LOGIN: ['LOGIN_HERO_SIDE', 'LOGIN_STRIP_TOP']
+    };
+    
+    const positions = pagePositions[page.toUpperCase()] || [];
+    
+    // Also include global positions
+    const globalPositions = ['GLOBAL_STRIP_TOP', 'GLOBAL_MODAL_CENTER', 'GLOBAL_FLOATING_CORNER'];
+    const allPositions = [...positions, ...globalPositions];
+    
+    // Fetch banners for all positions
+    const bannersByPosition = {};
+    
+    for (const position of allPositions) {
+      const banners = await Banner.getActiveBannersByPosition(position, tenancyId);
+      
+      if (banners.length > 0) {
+        // Populate
+        const populated = await Banner.populate(banners, [
+          { path: 'template', select: 'name code type layout design settings responsive' },
+          { path: 'linkedCampaign', select: 'name description' }
+        ]);
+        
+        bannersByPosition[position] = populated;
+      }
+    }
+    
+    // Add cache control headers to prevent browser caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store'
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        page,
+        bannersByPosition
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching banners by page:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch banners'
+    });
+  }
+};
+
+/**
+ * @route   POST /api/customer/banners/:id/conversion
+ * @desc    Record banner conversion (when order is placed)
+ * @access  Private (Customer)
+ */
+exports.recordConversion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { orderValue } = req.body;
+    
+    const banner = await Banner.findById(id);
+    
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    // Record conversion
+    const result = await banner.recordConversion(orderValue || 0);
+    
+    res.json({
+      success: true,
+      message: 'Conversion recorded',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error recording conversion:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record conversion'
+    });
+  }
+};
+
+/**
+ * @route   GET /api/customer/banners/active-campaigns
+ * @desc    Get all active campaign banners
+ * @access  Public
+ */
+exports.getActiveCampaignBanners = async (req, res) => {
+  try {
+    const tenancyId = req.tenancyId;
+    const now = new Date();
+    
+    const banners = await Banner.find({
+      $or: [
+        { tenancy: tenancyId, bannerScope: 'TENANT' },
+        { bannerScope: 'GLOBAL' }
+      ],
+      state: 'ACTIVE',
+      isActive: true,
+      'schedule.startDate': { $lte: now },
+      'schedule.endDate': { $gte: now }
+    })
+      .populate('template', 'name code type')
+      .populate('linkedCampaign', 'name description startDate endDate')
+      .sort({ priority: -1 });
+    
+    // Add cache control headers to prevent browser caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store'
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        banners,
+        count: banners.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching active campaign banners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch banners'
     });
   }
 };

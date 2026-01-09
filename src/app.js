@@ -64,8 +64,11 @@ const app = express();
 // Trust proxy for Render/production (needed for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
+// Security middleware - Configure helmet to allow images
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
 
 // CORS configuration with credentials support for cookies
 const allowedOrigins = [
@@ -123,6 +126,14 @@ if (process.env.NODE_ENV === 'production') {
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files (for uploaded images)
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+}, express.static('public/uploads'));
 
 // Logging
 if (process.env.NODE_ENV === 'development') {

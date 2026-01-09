@@ -30,7 +30,7 @@ const campaignSchema = new mongoose.Schema({
   createdByModel: {
     type: String,
     required: true,
-    enum: ['Admin', 'SuperAdmin']
+    enum: ['User', 'SuperAdmin']
   },
   
   // Tenancy Association

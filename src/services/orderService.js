@@ -140,10 +140,30 @@ class OrderService {
   // Update customer statistics after order completion
   static async updateCustomerStats(customerId, order) {
     try {
+      console.log('========================================');
+      console.log('UPDATE CUSTOMER STATS CALLED');
+      console.log('Customer ID:', customerId);
+      console.log('Order ID:', order._id);
+      console.log('Order Number:', order.orderNumber);
+      console.log('Order Status:', order.status);
+      console.log('Order Tenancy:', order.tenancy);
+      console.log('Order Total:', order.pricing?.total);
+      console.log('========================================');
+      
       const customer = await User.findById(customerId);
       if (!customer) return;
 
-      // Add reward points for VIP customers
+      // Award loyalty points through loyalty program
+      try {
+        console.log('🎯 Attempting to award loyalty points...');
+        const LoyaltyService = require('./loyaltyService');
+        await LoyaltyService.awardPointsForOrder(customerId, order);
+      } catch (loyaltyError) {
+        console.error('Error awarding loyalty points:', loyaltyError);
+        // Don't fail the whole process if loyalty fails
+      }
+
+      // Add reward points for VIP customers (legacy system)
       if (customer.isVIP) {
         const points = Math.floor(order.pricing.total / 100); // 1 point per ₹100
         customer.rewardPoints += points;

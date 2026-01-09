@@ -1,5 +1,7 @@
 const app = require('./src/app');
 const connectDB = require('./src/config/database');
+const cron = require('node-cron');
+const bannerLifecycleJob = require('./src/jobs/bannerLifecycleJob');
 
 const PORT = process.env.PORT || 5000;
 
@@ -30,11 +32,39 @@ connectDB().catch(err => {
   console.warn('💡 Some features will be limited without database connection');
 });
 
+// ============================================
+// CRON JOBS: Banner Lifecycle Management
+// ============================================
+const setupCronJobs = () => {
+  // Auto-activate scheduled banners (every 5 minutes)
+  cron.schedule('*/5 * * * *', async () => {
+    await bannerLifecycleJob.autoActivateBanners();
+  });
+  
+  // Auto-complete expired banners (every hour)
+  cron.schedule('0 * * * *', async () => {
+    await bannerLifecycleJob.autoCompleteBanners();
+  });
+  
+  // Sync banners with campaigns (every 15 minutes)
+  cron.schedule('*/15 * * * *', async () => {
+    await bannerLifecycleJob.syncWithCampaigns();
+  });
+  
+  console.log('⏰ Banner lifecycle cron jobs scheduled:');
+  console.log('   - Auto-activate: Every 5 minutes');
+  console.log('   - Auto-complete: Every hour');
+  console.log('   - Campaign sync: Every 15 minutes');
+};
+
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 API docs: http://localhost:${PORT}/api`);
+  
+  // Setup cron jobs
+  setupCronJobs();
   
   // Start keep-alive in production
   if (process.env.NODE_ENV === 'production') {

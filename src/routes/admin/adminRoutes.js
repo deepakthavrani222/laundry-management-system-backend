@@ -92,6 +92,7 @@ const couponRoutes = require('./couponRoutes');
 const discountRoutes = require('./discountRoutes');
 const referralRoutes = require('./referralRoutes');
 const loyaltyRoutes = require('./loyaltyRoutes');
+const campaignRoutes = require('./campaignRoutes');
 
 const router = express.Router();
 
@@ -213,5 +214,10 @@ router.use('/coupons', couponRoutes);
 router.use('/discounts', discountRoutes);
 router.use('/referrals', referralRoutes);
 router.use('/loyalty', loyaltyRoutes);
+router.use('/campaigns', campaignRoutes);
+
+// Fix customer tenancy route
+const fixCustomerTenancyRoute = require('./fixCustomerTenancy');
+router.use('/utils', fixCustomerTenancyRoute);
 
 module.exports = router;

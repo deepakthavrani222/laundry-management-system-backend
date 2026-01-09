@@ -6,6 +6,13 @@ const getLoyaltyBalance = async (req, res) => {
     const userId = req.user._id;
     const tenancyId = req.user.tenancy;
     
+    console.log('========================================');
+    console.log('LOYALTY BALANCE REQUEST');
+    console.log('User ID:', userId);
+    console.log('User Tenancy ID:', tenancyId);
+    console.log('Current Date:', new Date());
+    console.log('========================================');
+    
     // Find active loyalty program for tenancy
     const program = await LoyaltyProgram.findOne({
       tenancy: tenancyId,
@@ -16,6 +23,26 @@ const getLoyaltyBalance = async (req, res) => {
         { endDate: null }
       ]
     });
+    
+    console.log('Program Found:', program ? 'YES' : 'NO');
+    if (program) {
+      console.log('Program Details:');
+      console.log('  - Name:', program.name);
+      console.log('  - ID:', program._id);
+      console.log('  - Tenancy:', program.tenancy);
+      console.log('  - Type:', program.type);
+      console.log('  - Active:', program.isActive);
+      console.log('  - Start Date:', program.startDate);
+      console.log('  - End Date:', program.endDate);
+    } else {
+      console.log('No program found - checking all programs for this tenancy...');
+      const allPrograms = await LoyaltyProgram.find({ tenancy: tenancyId });
+      console.log('Total programs for this tenancy:', allPrograms.length);
+      allPrograms.forEach(p => {
+        console.log(`  - ${p.name}: Active=${p.isActive}, Start=${p.startDate}, End=${p.endDate}`);
+      });
+    }
+    console.log('========================================');
     
     if (!program) {
       return res.json({
@@ -33,6 +60,17 @@ const getLoyaltyBalance = async (req, res) => {
       user: userId,
       tenancy: tenancyId
     }).populate('program', 'name type pointsConfig tiers');
+    
+    console.log('Member Found:', member ? 'YES' : 'NO');
+    if (member) {
+      console.log('Member Details:');
+      console.log('  - ID:', member._id);
+      console.log('  - User:', member.user);
+      console.log('  - Program:', member.program?._id);
+      console.log('  - Points Balance:', member.pointsBalance);
+      console.log('  - Lifetime Points:', member.lifetimePoints);
+    }
+    console.log('========================================');
     
     if (!member) {
       return res.json({
@@ -68,6 +106,9 @@ const getLoyaltyBalance = async (req, res) => {
         }
       }
     });
+    
+    console.log('✅ Sent enrolled response with', member.pointsBalance, 'points');
+    console.log('========================================');
   } catch (error) {
     console.error('Get loyalty balance error:', error);
     res.status(500).json({
@@ -180,7 +221,7 @@ const enrollInLoyalty = async (req, res) => {
       tenancy: tenancyId,
       program: program._id,
       user: userId,
-      enrollmentSource: 'self'
+      enrollmentSource: 'manual'
     });
     
     // Give welcome bonus if configured
@@ -267,6 +308,39 @@ const redeemPoints = async (req, res) => {
     try {
       await member.redeemPoints(points, redemptionType, value);
       
+      // Add value to wallet for discount/credit redemptions
+      if (redemptionType === 'discount' || redemptionType === 'credit') {
+        const User = require('../../models/User');
+        const user = await User.findById(userId);
+        
+        if (user) {
+          // Initialize wallet if doesn't exist
+          if (!user.wallet) {
+            user.wallet = {
+              balance: 0,
+              transactions: []
+            };
+          }
+          
+          // Add credit to wallet
+          user.wallet.balance += value;
+          
+          // Add transaction record
+          user.wallet.transactions.push({
+            type: 'credit',
+            amount: value,
+            description: `Loyalty points redemption - ${points} points`,
+            date: new Date(),
+            source: 'loyalty_redemption',
+            balanceAfter: user.wallet.balance
+          });
+          
+          await user.save();
+          
+          console.log(`✅ Added ₹${value} to wallet for user ${userId} (${points} points redeemed)`);
+        }
+      }
+      
       res.json({
         success: true,
         message: 'Points redeemed successfully',
@@ -274,7 +348,8 @@ const redeemPoints = async (req, res) => {
           pointsRedeemed: points,
           remainingBalance: member.pointsBalance,
           redemptionType,
-          value
+          value,
+          walletCreditAdded: (redemptionType === 'discount' || redemptionType === 'credit') ? value : 0
         }
       });
     } catch (error) {
@@ -298,13 +373,22 @@ const getAvailableRewards = async (req, res) => {
     const userId = req.user._id;
     const tenancyId = req.user.tenancy;
     
+    console.log('========================================');
+    console.log('GET AVAILABLE REWARDS');
+    console.log('User ID:', userId);
+    console.log('Tenancy ID:', tenancyId);
+    
     // Find member
     const member = await LoyaltyMember.findOne({
       user: userId,
       tenancy: tenancyId
     }).populate('program');
     
+    console.log('Member Found:', member ? 'YES' : 'NO');
+    
     if (!member) {
+      console.log('No member found - returning empty rewards');
+      console.log('========================================');
       return res.json({
         success: true,
         data: { rewards: [] }
@@ -314,6 +398,12 @@ const getAvailableRewards = async (req, res) => {
     const program = member.program;
     const pointsBalance = member.pointsBalance;
     
+    console.log('Program:', program.name);
+    console.log('Program Type:', program.type);
+    console.log('Points Balance:', pointsBalance);
+    console.log('Has pointsConfig:', !!program.pointsConfig);
+    console.log('Redemption Options:', program.pointsConfig?.redemptionOptions?.length || 0);
+    
     // Build rewards catalog based on program type
     const rewards = [];
     
@@ -321,7 +411,10 @@ const getAvailableRewards = async (req, res) => {
     if (program.type === 'points' && program.pointsConfig) {
       const redemptionOptions = program.pointsConfig.redemptionOptions || [];
       
+      console.log('Processing', redemptionOptions.length, 'redemption options...');
+      
       redemptionOptions.forEach(option => {
+        console.log('  -', option.name, ':', option.pointsRequired, 'points');
         rewards.push({
           id: option._id,
           name: option.name,
@@ -334,6 +427,9 @@ const getAvailableRewards = async (req, res) => {
         });
       });
     }
+    
+    console.log('Total rewards built:', rewards.length);
+    console.log('========================================');
     
     // Tier-based rewards
     if (program.type === 'tiered' && member.currentTier) {

@@ -104,6 +104,14 @@ const createLoyaltyProgram = async (req, res) => {
       autoEnrollment, welcomeBonus, startDate, endDate, isActive
     } = req.body;
     
+    // Validate subscription config if type is subscription
+    if (type === 'subscription' && (!subscriptionConfig || !subscriptionConfig.monthlyFee)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Monthly fee is required for subscription type programs'
+      });
+    }
+    
     const program = new LoyaltyProgram({
       tenancy: tenancyId,
       name,
@@ -114,7 +122,7 @@ const createLoyaltyProgram = async (req, res) => {
       tierResetPeriod,
       punchCardConfig,
       cashbackConfig,
-      subscriptionConfig,
+      subscriptionConfig: type === 'subscription' ? subscriptionConfig : undefined,
       autoEnrollment: autoEnrollment !== false,
       welcomeBonus,
       startDate,

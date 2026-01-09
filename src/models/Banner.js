@@ -14,23 +14,63 @@ const BannerSchema = new mongoose.Schema({
     default: 'TENANT'
   },
   
-  // Basic Info
-  title: { 
-    type: String, 
-    required: true, 
-    maxlength: 100,
-    trim: true
+  // Template Reference
+  template: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BannerTemplate',
+    required: true
   },
-  description: { 
-    type: String, 
-    maxlength: 500,
-    trim: true
+  templateType: {
+    type: String,
+    enum: ['HERO', 'SLIDER', 'STRIP', 'CARD', 'MODAL', 'FLOATING'],
+    required: true
+  },
+  
+  // Position (from template's allowed positions)
+  position: {
+    type: String,
+    enum: [
+      'HOME_HERO_TOP', 'HOME_SLIDER_MID', 'HOME_STRIP_TOP', 'HOME_STRIP_BOTTOM', 'HOME_CARD_SIDEBAR',
+      'SERVICES_HERO_TOP', 'SERVICES_SLIDER_MID', 'SERVICES_CARD_GRID',
+      'OFFERS_HERO_TOP', 'OFFERS_SLIDER_MID', 'OFFERS_CARD_GRID',
+      'CHECKOUT_STRIP_TOP', 'CHECKOUT_CARD_SIDEBAR',
+      'DASHBOARD_HERO_TOP', 'DASHBOARD_CARD_GRID',
+      'LOGIN_HERO_SIDE', 'LOGIN_STRIP_TOP',
+      'GLOBAL_STRIP_TOP', 'GLOBAL_MODAL_CENTER', 'GLOBAL_FLOATING_CORNER'
+    ],
+    required: true
+  },
+  
+  // Content (filled by admin based on template fields)
+  content: {
+    title: { 
+      type: String, 
+      required: true, 
+      maxlength: 100,
+      trim: true
+    },
+    subtitle: { 
+      type: String, 
+      maxlength: 150,
+      trim: true
+    },
+    description: { 
+      type: String, 
+      maxlength: 500,
+      trim: true
+    },
+    message: {
+      type: String,
+      maxlength: 200,
+      trim: true
+    },
+    customFields: mongoose.Schema.Types.Mixed // For template-specific fields
   },
   
   // Visual Content
   imageUrl: { 
     type: String, 
-    required: true 
+    required: false  // Optional - can use placeholder or no image
   },
   imageAlt: { 
     type: String,
@@ -40,52 +80,46 @@ const BannerSchema = new mongoose.Schema({
     type: String 
   }, // Optional mobile-specific image
   
-  // Banner Type
-  type: { 
-    type: String, 
-    enum: ['PROMOTIONAL', 'REFERRAL', 'ANNOUNCEMENT', 'LOYALTY'],
-    required: true,
-    default: 'PROMOTIONAL'
-  },
-  
-  // Linked Promotion (Optional)
+  // Promotional Feature Linking (Optional - not all banners need promotions)
   linkedPromotion: {
-    type: { 
-      type: String, 
-      enum: ['CAMPAIGN', 'COUPON', 'DISCOUNT', 'REFERRAL', 'LOYALTY', 'NONE'],
-      default: 'NONE'
-    },
-    promotionId: { 
-      type: mongoose.Schema.Types.ObjectId,
-      refPath: 'linkedPromotion.promotionModel'
-    },
-    promotionModel: {
+    type: {
       type: String,
-      enum: ['Campaign', 'Coupon', 'Discount', 'ReferralProgram', 'LoyaltyProgram']
+      enum: ['campaign', 'discount', 'coupon', 'referral', 'loyalty', 'none'],
+      default: 'none'
+    },
+    id: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'linkedPromotion.type'
     }
   },
   
-  // Call to Action
-  ctaText: { 
-    type: String, 
-    maxlength: 50,
-    default: 'Learn More'
+  // Legacy field for backward compatibility
+  linkedCampaign: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Campaign',
+    required: false
   },
-  ctaLink: { 
-    type: String 
-  }, // Internal link or external URL
   
-  // Display Settings
-  targetPages: [{ 
-    type: String, 
-    enum: ['HOME', 'SERVICES', 'PRICING', 'CHECKOUT', 'DASHBOARD', 'ALL'],
-    default: 'HOME'
-  }],
-  position: { 
-    type: String, 
-    enum: ['TOP', 'HERO', 'MIDDLE', 'BOTTOM', 'POPUP', 'STICKY'],
-    default: 'TOP'
+  // Call to Action
+  cta: {
+    text: { 
+      type: String, 
+      maxlength: 50,
+      default: 'Learn More'
+    },
+    link: { 
+      type: String 
+    }, // Internal link or external URL
+    secondaryText: {
+      type: String,
+      maxlength: 50
+    },
+    secondaryLink: {
+      type: String
+    }
   },
+  
+  // Display Settings - Removed targetPages (replaced by position)
   priority: { 
     type: Number, 
     default: 0,
@@ -94,36 +128,64 @@ const BannerSchema = new mongoose.Schema({
   }, // Higher = shown first
   
   // Scheduling
-  startDate: { 
-    type: Date, 
-    required: true,
-    default: Date.now
-  },
-  endDate: { 
-    type: Date, 
-    required: true 
+  schedule: {
+    startDate: { 
+      type: Date, 
+      required: true,
+      default: Date.now
+    },
+    endDate: { 
+      type: Date, 
+      required: true 
+    },
+    autoActivate: {
+      type: Boolean,
+      default: true
+    },
+    autoComplete: {
+      type: Boolean,
+      default: true
+    }
   },
   
-  // Status & Approval
-  status: { 
-    type: String, 
-    enum: ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'PAUSED', 'EXPIRED', 'REJECTED'],
+  // Lifecycle State
+  state: {
+    type: String,
+    enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SCHEDULED', 'ACTIVE', 'PAUSED', 'COMPLETED'],
     default: 'DRAFT'
   },
-  requiresApproval: { 
-    type: Boolean, 
-    default: false 
-  },
-  approvedBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'SuperAdmin' 
-  },
-  approvedAt: { 
-    type: Date 
-  },
-  rejectionReason: { 
-    type: String,
-    maxlength: 500
+  
+  // Approval Workflow
+  approval: {
+    required: { 
+      type: Boolean, 
+      default: function() {
+        return this.bannerScope === 'TENANT';
+      }
+    },
+    status: {
+      type: String,
+      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      default: 'PENDING'
+    },
+    approvedBy: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'User'
+    },
+    approvedAt: { 
+      type: Date 
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    rejectedAt: {
+      type: Date
+    },
+    rejectionReason: { 
+      type: String,
+      maxlength: 500
+    }
   },
   
   // Analytics
@@ -151,38 +213,37 @@ const BannerSchema = new mongoose.Schema({
   },
   
   // Metadata
+  autoGenerated: {
+    type: Boolean,
+    default: false
+  },
   isActive: { 
     type: Boolean, 
     default: true 
   },
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    refPath: 'createdByModel',
-    required: true
-  },
-  createdByModel: { 
-    type: String, 
-    enum: ['Admin', 'SuperAdmin', 'User'],
+    ref: 'User',
     required: true
   },
   updatedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    refPath: 'updatedByModel' 
-  },
-  updatedByModel: { 
-    type: String, 
-    enum: ['Admin', 'SuperAdmin', 'User']
+    ref: 'User'
   }
 }, { 
   timestamps: true 
 });
 
 // Indexes for performance
-BannerSchema.index({ tenancy: 1, status: 1, startDate: 1, endDate: 1 });
-BannerSchema.index({ bannerScope: 1, status: 1 });
+BannerSchema.index({ tenancy: 1, state: 1, 'schedule.startDate': 1, 'schedule.endDate': 1 });
+BannerSchema.index({ bannerScope: 1, state: 1 });
 BannerSchema.index({ priority: -1 });
-BannerSchema.index({ targetPages: 1, status: 1 });
-BannerSchema.index({ startDate: 1, endDate: 1 });
+BannerSchema.index({ position: 1, state: 1 });
+BannerSchema.index({ 'schedule.startDate': 1, 'schedule.endDate': 1 });
+BannerSchema.index({ template: 1 });
+BannerSchema.index({ linkedCampaign: 1 });
+BannerSchema.index({ 'linkedPromotion.type': 1, 'linkedPromotion.id': 1 });
+BannerSchema.index({ 'approval.status': 1 });
 
 // Virtual for CTR (Click-Through Rate)
 BannerSchema.virtual('ctr').get(function() {
@@ -199,20 +260,15 @@ BannerSchema.virtual('conversionRate').get(function() {
 // Methods
 BannerSchema.methods.isValid = function() {
   const now = new Date();
-  return this.status === 'ACTIVE' && 
+  return this.state === 'ACTIVE' && 
          this.isActive && 
-         this.startDate <= now && 
-         this.endDate >= now;
+         this.schedule.startDate <= now && 
+         this.schedule.endDate >= now;
 };
 
-BannerSchema.methods.canDisplay = function(page) {
+BannerSchema.methods.canDisplay = function(position) {
   if (!this.isValid()) return false;
-  
-  // Check if banner targets this page
-  if (this.targetPages.includes('ALL')) return true;
-  if (this.targetPages.includes(page)) return true;
-  
-  return false;
+  return this.position === position;
 };
 
 BannerSchema.methods.recordImpression = async function() {
@@ -237,79 +293,120 @@ BannerSchema.methods.recordConversion = async function(orderValue = 0) {
   };
 };
 
-BannerSchema.methods.checkApprovalRequired = function() {
-  // Auto-approval rules
-  if (this.bannerScope === 'GLOBAL') return true;
-  if (this.linkedPromotion.type !== 'NONE') {
-    // Check if linked promotion has high discount
-    // This would need to query the linked promotion
-    // For now, require approval for all linked promotions
-    return true;
+BannerSchema.methods.transitionState = async function(newState, userId = null) {
+  const validTransitions = {
+    DRAFT: ['PENDING_APPROVAL'],
+    PENDING_APPROVAL: ['APPROVED', 'REJECTED'],
+    APPROVED: ['SCHEDULED', 'ACTIVE'],
+    REJECTED: ['DRAFT'],
+    SCHEDULED: ['ACTIVE', 'PAUSED'],
+    ACTIVE: ['PAUSED', 'COMPLETED'],
+    PAUSED: ['ACTIVE', 'COMPLETED'],
+    COMPLETED: []
+  };
+  
+  if (!validTransitions[this.state].includes(newState)) {
+    throw new Error(`Invalid state transition from ${this.state} to ${newState}`);
   }
-  return false;
+  
+  this.state = newState;
+  
+  // Handle approval state changes
+  if (newState === 'APPROVED') {
+    this.approval.status = 'APPROVED';
+    this.approval.approvedBy = userId;
+    this.approval.approvedAt = new Date();
+  } else if (newState === 'REJECTED') {
+    this.approval.status = 'REJECTED';
+    this.approval.rejectedBy = userId;
+    this.approval.rejectedAt = new Date();
+  }
+  
+  if (userId) {
+    this.updatedBy = userId;
+  }
+  
+  await this.save();
+  return this;
 };
 
 // Static methods
-BannerSchema.statics.getActiveBanners = async function(tenancyId, page = 'ALL') {
+BannerSchema.statics.getActiveBannersByPosition = async function(position, tenancyId = null) {
   const now = new Date();
   
-  // Get tenant banners
-  const tenantBanners = await this.find({
-    tenancy: tenancyId,
-    bannerScope: 'TENANT',
-    status: 'ACTIVE',
+  const query = {
+    position,
+    state: 'ACTIVE',
     isActive: true,
-    startDate: { $lte: now },
-    endDate: { $gte: now },
-    $or: [
-      { targetPages: 'ALL' },
-      { targetPages: page }
-    ]
-  }).sort({ priority: -1 });
+    'schedule.startDate': { $lte: now },
+    'schedule.endDate': { $gte: now }
+  };
   
-  // Get global banners
-  const globalBanners = await this.find({
-    bannerScope: 'GLOBAL',
-    status: 'ACTIVE',
-    isActive: true,
-    startDate: { $lte: now },
-    endDate: { $gte: now },
-    $or: [
-      { targetPages: 'ALL' },
-      { targetPages: page }
-    ]
-  }).sort({ priority: -1 });
+  // If position is GLOBAL, only get global banners
+  if (position.startsWith('GLOBAL_')) {
+    query.bannerScope = 'GLOBAL';
+  } else if (tenancyId) {
+    // Get both tenant and global banners for this position
+    query.$or = [
+      { tenancy: tenancyId, bannerScope: 'TENANT' },
+      { bannerScope: 'GLOBAL' }
+    ];
+  }
   
-  // Merge and sort by priority
-  const allBanners = [...tenantBanners, ...globalBanners]
-    .sort((a, b) => {
-      // First by priority
-      if (b.priority !== a.priority) {
-        return b.priority - a.priority;
-      }
-      // Then tenant banners before global
-      if (a.bannerScope === 'TENANT' && b.bannerScope === 'GLOBAL') return -1;
-      if (a.bannerScope === 'GLOBAL' && b.bannerScope === 'TENANT') return 1;
-      // Then by creation date (newer first)
-      return b.createdAt - a.createdAt;
-    });
+  const banners = await this.find(query)
+    .populate('template')
+    .populate('linkedCampaign')
+    .sort({ priority: -1, createdAt: -1 });
   
-  return allBanners;
+  return banners;
+};
+
+BannerSchema.statics.getPendingApprovalBanners = async function() {
+  return this.find({
+    state: 'PENDING_APPROVAL',
+    'approval.status': 'PENDING'
+  })
+    .populate('template')
+    .populate('linkedCampaign')
+    .populate('tenancy')
+    .populate('createdBy', 'name email')
+    .sort({ createdAt: -1 });
+};
+
+BannerSchema.statics.getBannersByState = async function(state, tenancyId = null) {
+  const query = { state };
+  if (tenancyId) {
+    query.tenancy = tenancyId;
+  }
+  
+  return this.find(query)
+    .populate('template')
+    .populate('linkedCampaign')
+    .sort({ createdAt: -1 });
 };
 
 // Pre-save middleware
 BannerSchema.pre('save', function(next) {
-  // Check if approval is required
-  if (this.isNew || this.isModified('linkedPromotion') || this.isModified('bannerScope')) {
-    this.requiresApproval = this.checkApprovalRequired();
-    if (this.requiresApproval && this.status === 'DRAFT') {
-      this.status = 'PENDING_APPROVAL';
+  // Set approval requirement for tenant banners
+  if (this.isNew && this.bannerScope === 'TENANT') {
+    this.approval.required = true;
+    if (this.state === 'DRAFT') {
+      // Don't auto-transition to pending, let admin explicitly submit
     }
   }
   
-  // Auto-expire if end date passed
-  if (this.endDate < new Date() && this.status === 'ACTIVE') {
-    this.status = 'EXPIRED';
+  // Auto-complete if end date passed
+  const now = new Date();
+  if (this.schedule.endDate < now && this.state === 'ACTIVE' && this.schedule.autoComplete) {
+    this.state = 'COMPLETED';
+  }
+  
+  // Auto-activate if start date reached and approved
+  if (this.schedule.startDate <= now && 
+      this.schedule.endDate >= now && 
+      this.state === 'SCHEDULED' && 
+      this.schedule.autoActivate) {
+    this.state = 'ACTIVE';
   }
   
   next();

@@ -1,6 +1,7 @@
 const Campaign = require('../../models/Campaign');
 const CampaignEngine = require('../../services/campaignEngine');
 const { validationResult } = require('express-validator');
+const { autoCreateBanner, updatePromotionBanner, deletePromotionBanner } = require('../../services/autoBannerService');
 
 // ============ TENANT CAMPAIGNS (Admin Level) ============
 
@@ -36,7 +37,6 @@ const getTenantCampaigns = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .populate('promotions.promotionId')
-      .populate('createdBy', 'name email')
       .populate('tenancy', 'name slug');
     
     const total = await Campaign.countDocuments(filter);
@@ -106,15 +106,23 @@ const createTenantCampaign = async (req, res) => {
       limits: limits || {},
       stacking: stacking || {},
       createdBy: req.user._id,
-      createdByModel: 'Admin',
+      createdByModel: 'User',
       status: 'DRAFT'
     });
     
     await campaign.save();
     
+    // Auto-create banner for this campaign
+    try {
+      await autoCreateBanner(campaign, 'Campaign', tenancyId, req.user._id);
+    } catch (bannerError) {
+      console.error('Failed to auto-create banner:', bannerError);
+      // Don't fail campaign creation if banner fails
+    }
+    
     res.status(201).json({
       success: true,
-      message: 'Tenant campaign created successfully',
+      message: 'Tenant campaign created successfully (banner auto-generated)',
       data: { campaign }
     });
   } catch (error) {
@@ -194,6 +202,19 @@ const updateTenantCampaign = async (req, res) => {
     
     await campaign.save();
     
+    // Update linked banner
+    try {
+      await updatePromotionBanner(campaign._id, 'Campaign', {
+        name: campaign.name,
+        description: campaign.description,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        status: campaign.status
+      });
+    } catch (bannerError) {
+      console.error('Failed to update banner:', bannerError);
+    }
+    
     res.json({
       success: true,
       message: 'Tenant campaign updated successfully',
@@ -236,6 +257,13 @@ const deleteTenantCampaign = async (req, res) => {
     }
     
     await Campaign.findByIdAndDelete(campaignId);
+    
+    // Delete linked banner
+    try {
+      await deletePromotionBanner(campaignId, 'Campaign');
+    } catch (bannerError) {
+      console.error('Failed to delete banner:', bannerError);
+    }
     
     res.json({
       success: true,
@@ -348,7 +376,7 @@ const createFromTemplate = async (req, res) => {
       {
         ...customizations,
         createdBy: req.user._id,
-        createdByModel: 'Admin'
+        createdByModel: 'User'
       }
     );
     

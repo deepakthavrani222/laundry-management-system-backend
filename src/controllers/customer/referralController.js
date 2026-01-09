@@ -36,14 +36,32 @@ const getReferralCode = async (req, res) => {
     });
     
     if (!referral) {
+      // Generate unique referral code
+      const generateCode = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < 8; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+      };
+      
+      const code = generateCode();
+      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
+      const link = `${baseUrl}/register?ref=${code}`;
+      
       // Create new referral
       referral = new Referral({
         tenancy: tenancyId,
         program: program._id,
         referrer: userId,
+        code: code,
+        link: link,
         expiresAt: new Date(Date.now() + program.referralCodeExpiry * 24 * 60 * 60 * 1000)
       });
+      
       await referral.save();
+      console.log(`✅ Created new referral code: ${code} for user ${userId}`);
     }
     
     // Get referral stats
@@ -77,8 +95,10 @@ const getReferralCode = async (req, res) => {
     };
     
     // Generate referral link
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
     const referralLink = `${baseUrl}/register?ref=${referral.code}`;
+    
+    console.log(`✅ Returning referral code: ${referral.code} for user ${userId}`);
     
     res.json({
       success: true,

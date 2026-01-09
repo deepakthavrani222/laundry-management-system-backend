@@ -84,6 +84,17 @@ const loyaltyProgramSchema = new mongoose.Schema({
       points: { type: Number, required: true },
       description: { type: String }
     }],
+    redemptionOptions: [{
+      name: { type: String, required: true },
+      description: { type: String },
+      pointsRequired: { type: Number, required: true },
+      value: { type: Number, required: true },
+      type: { 
+        type: String, 
+        enum: ['discount', 'credit', 'free_service', 'cashback'],
+        required: true
+      }
+    }],
     pointsExpiry: { type: Number, default: 365 }, // Days until points expire
     minRedemption: { type: Number, default: 100 } // Minimum points to redeem
   },
@@ -126,7 +137,7 @@ const loyaltyProgramSchema = new mongoose.Schema({
   
   // Subscription Configuration
   subscriptionConfig: {
-    monthlyFee: { type: Number, required: true },
+    monthlyFee: { type: Number },
     benefits: {
       unlimitedWashes: { type: Boolean, default: false },
       maxWashesPerMonth: { type: Number, default: 0 },

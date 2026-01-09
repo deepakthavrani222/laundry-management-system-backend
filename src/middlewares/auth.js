@@ -236,7 +236,10 @@ const optionalAuth = async (req, res, next) => {
 // Protect SuperAdmin routes - require SuperAdmin authentication only
 const protectSuperAdmin = async (req, res, next) => {
   try {
-    const token = getTokenFromRequest(req);
+    const { getSuperAdminTokenFromRequest } = require('../utils/cookieConfig');
+    const token = getSuperAdminTokenFromRequest(req);
+
+    console.log('🔐 SuperAdmin Auth - Token received:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
     if (!token) {
       return res.status(401).json({
@@ -248,8 +251,16 @@ const protectSuperAdmin = async (req, res, next) => {
     try {
       const decoded = verifyToken(token);
       
+      console.log('🔐 SuperAdmin Auth - Decoded token:', {
+        adminId: decoded.adminId,
+        email: decoded.email,
+        role: decoded.role,
+        sessionId: decoded.sessionId
+      });
+      
       // Check if it's a superadmin token
       if (!decoded.adminId || decoded.role !== 'superadmin') {
+        console.log('❌ SuperAdmin Auth - Not a superadmin token');
         return res.status(403).json({
           success: false,
           message: 'SuperAdmin access required'
@@ -259,6 +270,7 @@ const protectSuperAdmin = async (req, res, next) => {
       const admin = await SuperAdmin.findById(decoded.adminId).select('-password');
       
       if (!admin) {
+        console.log('❌ SuperAdmin Auth - Admin not found');
         return res.status(401).json({
           success: false,
           message: 'SuperAdmin not found'
@@ -266,16 +278,25 @@ const protectSuperAdmin = async (req, res, next) => {
       }
 
       if (!admin.isActive) {
+        console.log('❌ SuperAdmin Auth - Admin inactive');
         return res.status(401).json({
           success: false,
           message: 'SuperAdmin account is deactivated'
         });
       }
 
+      console.log('✅ SuperAdmin Auth - Admin found:', {
+        id: admin._id,
+        email: admin.email,
+        role: admin.role,
+        isActive: admin.isActive
+      });
+
       req.user = admin;
       req.isSuperAdmin = true;
       next();
     } catch (error) {
+      console.log('❌ SuperAdmin Auth - Token verification failed:', error.message);
       return res.status(401).json({
         success: false,
         message: 'Invalid token'

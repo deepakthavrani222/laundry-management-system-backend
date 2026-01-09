@@ -171,10 +171,169 @@ const createOrder = asyncHandler(async (req, res) => {
     deliveryCharge = Math.max(0, deliveryCharge - serviceTypeDiscount);
   }
   
+  // Apply automatic discounts first
+  const Discount = require('../../models/Discount');
+  let automaticDiscount = 0;
+  let appliedDiscounts = [];
+  const orderTenancy = tenancyId || req.tenancyId || req.user?.tenancy || branch.tenancy;
+  
+  console.log('========================================');
+  console.log('CHECKING AUTOMATIC DISCOUNTS');
+  console.log('Order Tenancy:', orderTenancy);
+  console.log('Order Total Amount:', totalAmount);
+  console.log('========================================');
+  
+  if (orderTenancy) {
+    // Get all active discounts for tenancy
+    const discounts = await Discount.find({
+      tenancy: orderTenancy,
+      isActive: true
+    }).sort({ priority: -1 });
+    
+    console.log(`Found ${discounts.length} active discounts for tenancy`);
+    
+    console.log(`Found ${discounts.length} active discounts for tenancy`);
+    
+    if (discounts.length > 0) {
+      discounts.forEach((d, i) => {
+        console.log(`  Discount ${i + 1}: ${d.name}`);
+        console.log(`    - Type: ${d.rules[0]?.type}`);
+        console.log(`    - Value: ${d.rules[0]?.value}`);
+        console.log(`    - Start: ${d.startDate}`);
+        console.log(`    - End: ${d.endDate}`);
+        console.log(`    - Is Valid: ${d.isValid()}`);
+      });
+    }
+    
+    // Create temporary order object for discount evaluation
+    const tempOrder = {
+      totalAmount,
+      items: orderItems,
+      customer: req.user._id
+    };
+    
+    for (const discount of discounts) {
+      console.log(`\nEvaluating discount: ${discount.name}`);
+      console.log(`  - Can apply to order: ${discount.canApplyToOrder(tempOrder, req.user)}`);
+      
+      if (discount.canApplyToOrder(tempOrder, req.user)) {
+        for (const rule of discount.rules) {
+          console.log(`  - Checking rule: ${rule.type}`);
+          const ruleCheck = discount.checkRule(rule, tempOrder, req.user);
+          console.log(`  - Rule check result: ${ruleCheck}`);
+          
+          if (ruleCheck) {
+            const discountAmount = discount.calculateDiscount(tempOrder, rule);
+            console.log(`  - Calculated discount amount: ₹${discountAmount}`);
+            
+            appliedDiscounts.push({
+              discountId: discount._id,
+              name: discount.name,
+              type: rule.type,
+              amount: discountAmount,
+              description: discount.description
+            });
+            
+            automaticDiscount += discountAmount;
+            
+            console.log(`✅ Applied automatic discount: ${discount.name} - ₹${discountAmount}`);
+            
+            // If discount doesn't stack with others, break
+            if (!discount.canStackWithOtherDiscounts) {
+              console.log(`  - Discount doesn't stack, stopping here`);
+              break;
+            }
+          }
+        }
+        
+        // If we found a non-stacking discount, stop checking others
+        if (appliedDiscounts.length > 0 && !appliedDiscounts[appliedDiscounts.length - 1].canStackWithOtherDiscounts) {
+          break;
+        }
+      }
+    }
+  }
+  
+  console.log(`\nTotal automatic discount: ₹${automaticDiscount}`);
+  console.log(`Applied discounts count: ${appliedDiscounts.length}`);
+  console.log('========================================\n');
+  
+  // Apply campaign benefits
+  let campaignDiscount = 0;
+  let appliedCampaign = null;
+  
+  console.log('========================================');
+  console.log('CHECKING CAMPAIGNS');
+  console.log('Order Tenancy:', orderTenancy);
+  console.log('========================================');
+  
+  if (orderTenancy) {
+    try {
+      const Campaign = require('../../models/Campaign');
+      
+      // Find active campaigns for this tenancy
+      const activeCampaigns = await Campaign.findActiveCampaigns(orderTenancy, 'ORDER_CHECKOUT');
+      
+      console.log(`Found ${activeCampaigns.length} active campaigns`);
+      
+      if (activeCampaigns.length > 0) {
+        // Get user data for eligibility
+        const userWithStats = await User.findById(req.user._id).select('orderCount totalSpent createdAt');
+        
+        // Find first eligible campaign
+        for (const campaign of activeCampaigns) {
+          console.log(`\nEvaluating campaign: ${campaign.name}`);
+          
+          // Check if user is eligible
+          const isEligible = campaign.isUserEligible(userWithStats, { total: totalAmount });
+          console.log(`  - Is eligible: ${isEligible}`);
+          
+          if (isEligible) {
+            // Check if campaign can stack with automatic discounts
+            let canApplyCampaign = true;
+            if (appliedDiscounts.length > 0 && !campaign.stacking.allowStackingWithDiscounts) {
+              canApplyCampaign = false;
+              console.log('  - Cannot stack with discounts');
+              continue;
+            }
+            
+            if (canApplyCampaign) {
+              // Calculate campaign benefit
+              const benefit = campaign.calculateBenefit({ total: totalAmount });
+              
+              if (benefit > 0) {
+                appliedCampaign = {
+                  campaignId: campaign._id,
+                  name: campaign.name,
+                  description: campaign.description,
+                  benefit: benefit,
+                  stacking: campaign.stacking,
+                  promotions: campaign.promotions.map(p => ({
+                    type: p.type,
+                    promotionId: p.promotionId
+                  }))
+                };
+                
+                campaignDiscount = benefit;
+                console.log(`✅ Applied campaign: ${campaign.name} - ₹${campaignDiscount}`);
+                break; // Use first eligible campaign
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Campaign evaluation error:', error);
+      // Don't fail order if campaign evaluation fails
+    }
+  }
+  
+  console.log(`\nTotal campaign discount: ₹${campaignDiscount}`);
+  console.log('========================================\n');
+  
   // Apply coupon discount if provided
   let couponDiscount = 0;
   let appliedCoupon = null;
-  const orderTenancy = tenancyId || req.tenancyId || req.user?.tenancy || branch.tenancy;
   
   if (couponCode && orderTenancy) {
     const coupon = await Coupon.findValidCoupon(orderTenancy, couponCode);
@@ -192,15 +351,48 @@ const createOrder = asyncHandler(async (req, res) => {
           if (existingOrders > 0) isEligible = false;
         }
         
-        if (isEligible) {
+        // Check if coupon can stack with automatic discounts
+        let canApplyCoupon = true;
+        if (appliedDiscounts.length > 0) {
+          // Check if any applied discount doesn't allow stacking with coupons
+          const hasNonStackingDiscount = appliedDiscounts.some(d => {
+            const discount = discounts.find(disc => disc._id.toString() === d.discountId.toString());
+            return discount && !discount.canStackWithCoupons;
+          });
+          if (hasNonStackingDiscount) {
+            canApplyCoupon = false;
+            console.log('⚠️ Coupon cannot be applied - automatic discount does not allow stacking');
+          }
+        }
+        
+        // Check if coupon can stack with campaign
+        if (appliedCampaign && !appliedCampaign.stacking?.allowStackingWithCoupons) {
+          canApplyCoupon = false;
+          console.log('⚠️ Coupon cannot be applied - campaign does not allow stacking');
+        }
+        
+        if (isEligible && canApplyCoupon) {
           couponDiscount = coupon.calculateDiscount(totalAmount);
           appliedCoupon = coupon;
+          console.log(`✅ Applied coupon: ${coupon.code} - ₹${couponDiscount}`);
         }
       }
     }
   }
   
-  const pricing = calculateOrderTotal(items, deliveryCharge, serviceTypeDiscount + couponDiscount, 0.18); // 18% tax
+  const pricing = calculateOrderTotal(items, deliveryCharge, serviceTypeDiscount + automaticDiscount + campaignDiscount + couponDiscount, 0.18); // 18% tax
+  
+  // Add discount info to pricing
+  if (automaticDiscount > 0) {
+    pricing.automaticDiscount = Math.round(automaticDiscount);
+    pricing.appliedDiscounts = appliedDiscounts;
+  }
+  
+  // Add campaign info to pricing
+  if (appliedCampaign) {
+    pricing.campaignDiscount = Math.round(campaignDiscount);
+    pricing.appliedCampaign = appliedCampaign;
+  }
   
   // Add coupon info to pricing
   if (appliedCoupon) {
@@ -295,6 +487,46 @@ const createOrder = asyncHandler(async (req, res) => {
   // Record coupon usage if applied
   if (appliedCoupon) {
     await appliedCoupon.recordUsage(req.user._id, order._id, couponDiscount);
+  }
+  
+  // Record automatic discount usage if applied
+  if (appliedDiscounts.length > 0) {
+    const Discount = require('../../models/Discount');
+    for (const appliedDiscount of appliedDiscounts) {
+      try {
+        const discount = await Discount.findById(appliedDiscount.discountId);
+        if (discount) {
+          await discount.recordUsage(order, appliedDiscount.amount);
+          console.log(`✅ Recorded discount usage: ${discount.name} - ₹${appliedDiscount.amount}`);
+        }
+      } catch (error) {
+        console.error('Error recording discount usage:', error);
+      }
+    }
+  }
+  
+  // Record campaign usage if applied
+  if (appliedCampaign) {
+    try {
+      const Campaign = require('../../models/Campaign');
+      const campaign = await Campaign.findById(appliedCampaign.campaignId);
+      if (campaign) {
+        // Update campaign usage stats
+        campaign.limits.usedCount += 1;
+        campaign.budget.spentAmount += campaignDiscount;
+        campaign.analytics.conversions += 1;
+        campaign.analytics.totalSavings += campaignDiscount;
+        campaign.analytics.totalRevenue += pricing.total;
+        campaign.analytics.uniqueUsers = await Order.distinct('customer', {
+          'pricing.appliedCampaign.campaignId': campaign._id
+        }).then(users => users.length);
+        
+        await campaign.save();
+        console.log(`✅ Recorded campaign usage: ${campaign.name} - ₹${campaignDiscount}`);
+      }
+    } catch (error) {
+      console.error('Error recording campaign usage:', error);
+    }
   }
 
   // Update customer stats

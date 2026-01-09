@@ -4,22 +4,39 @@ const bannerController = require('../../controllers/admin/bannerController');
 const { protect, restrictTo } = require('../../middlewares/auth');
 const { upload } = require('../../services/imageUploadService');
 
-// Apply authentication and authorization middleware
+// Apply admin authentication to all routes
 router.use(protect);
-router.use(restrictTo('admin', 'ADMIN', 'OPERATIONS_ADMIN'));
+router.use(restrictTo('admin'));
 
-// Banner CRUD routes
-router.get('/', bannerController.getTenantBanners);
-router.get('/:id', bannerController.getBannerById);
-router.post('/', bannerController.createTenantBanner);
-router.put('/:id', bannerController.updateTenantBanner);
-router.delete('/:id', bannerController.deleteTenantBanner);
-
-// Banner management routes
-router.patch('/:id/toggle-status', bannerController.toggleBannerStatus);
-router.get('/:id/analytics', bannerController.getBannerAnalytics);
-
-// Image upload route (with multer middleware)
+// Image Upload (must be before other routes to avoid conflict)
 router.post('/upload-image', upload.single('image'), bannerController.uploadBannerImage);
+
+// Get all promotions for dropdown
+router.get('/promotions/all', bannerController.getAllPromotions);
+
+// Template Routes
+router.get('/templates/available', bannerController.getAvailableTemplates);
+router.get('/templates/:id/validation-rules', bannerController.getTemplateValidationRules);
+
+// Analytics (before /:id routes)
+router.get('/analytics/overview', bannerController.getBannerAnalytics);
+
+// Banner CRUD
+router.post('/', bannerController.createBanner);
+router.get('/', bannerController.getAllBanners);
+router.get('/by-state/:state', bannerController.getBannersByState);
+
+// Campaign Integration (before /:id routes)
+router.get('/campaigns/:campaignId', bannerController.getBannersByCampaign);
+
+// Banner Workflow (before /:id routes)
+router.post('/:id/submit-approval', bannerController.submitForApproval);
+router.patch('/:id/state', bannerController.changeBannerState);
+router.get('/:id/analytics', bannerController.getBannerAnalyticsById);
+
+// Single banner routes (must be last)
+router.get('/:id', bannerController.getBannerById);
+router.put('/:id', bannerController.updateBanner);
+router.delete('/:id', bannerController.deleteBanner);
 
 module.exports = router;

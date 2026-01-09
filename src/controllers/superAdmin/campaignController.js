@@ -40,9 +40,21 @@ const getAllCampaigns = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .populate('promotions.promotionId')
-      .populate('createdBy', 'name email')
       .populate('tenancy', 'name slug')
       .populate('applicableTenancies', 'name slug');
+    
+    // Manually populate createdBy to handle both User and SuperAdmin models
+    for (let campaign of campaigns) {
+      if (campaign.createdBy && campaign.createdByModel) {
+        try {
+          const Model = require(`../../models/${campaign.createdByModel}`);
+          const creator = await Model.findById(campaign.createdBy).select('name email');
+          campaign.createdBy = creator;
+        } catch (err) {
+          console.log(`Could not populate createdBy for campaign ${campaign._id}`);
+        }
+      }
+    }
     
     const total = await Campaign.countDocuments(filter);
     
@@ -69,8 +81,11 @@ const getAllCampaigns = async (req, res) => {
 // Create global campaign
 const createGlobalCampaign = async (req, res) => {
   try {
+    console.log('📝 Creating global campaign with data:', JSON.stringify(req.body, null, 2));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -84,6 +99,8 @@ const createGlobalCampaign = async (req, res) => {
       applicableTenancies, autoApprovalRules
     } = req.body;
     
+    console.log('✅ Validation passed, creating campaign...');
+    
     // Validate tenancies if specified
     if (applicableTenancies && applicableTenancies.length > 0) {
       const validTenancies = await Tenancy.find({
@@ -92,6 +109,7 @@ const createGlobalCampaign = async (req, res) => {
       });
       
       if (validTenancies.length !== applicableTenancies.length) {
+        console.log('❌ Invalid tenancies:', applicableTenancies);
         return res.status(400).json({
           success: false,
           message: 'Some specified tenancies are invalid or inactive'
@@ -99,7 +117,7 @@ const createGlobalCampaign = async (req, res) => {
       }
     }
     
-    const campaign = new Campaign({
+    const campaignData = {
       campaignScope: 'GLOBAL',
       applicableTenancies: applicableTenancies || [],
       name,
@@ -119,10 +137,15 @@ const createGlobalCampaign = async (req, res) => {
       autoApprovalRules: autoApprovalRules || {},
       createdBy: req.user._id,
       createdByModel: 'SuperAdmin',
-      status: 'DRAFT'
-    });
+      status: 'ACTIVE' // SuperAdmin campaigns are auto-approved and active
+    };
     
+    console.log('📦 Campaign data to save:', JSON.stringify(campaignData, null, 2));
+    
+    const campaign = new Campaign(campaignData);
     await campaign.save();
+    
+    console.log('✅ Campaign created successfully:', campaign._id);
     
     res.status(201).json({
       success: true,
@@ -130,10 +153,12 @@ const createGlobalCampaign = async (req, res) => {
       data: { campaign }
     });
   } catch (error) {
-    console.error('Create global campaign error:', error);
+    console.error('❌ Create global campaign error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Failed to create global campaign'
+      message: error.message || 'Failed to create global campaign',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
