@@ -47,7 +47,22 @@ const registerValidation = Joi.object({
     .messages({
       'any.only': 'Passwords do not match',
       'string.empty': 'Please confirm your password'
-    })
+    }),
+  
+  // Optional fields for referral and tenancy
+  referralCode: Joi.string()
+    .trim()
+    .optional()
+    .allow('', null),
+  
+  tenancySlug: Joi.string()
+    .trim()
+    .optional()
+    .allow('', null),
+  
+  role: Joi.string()
+    .valid('customer')
+    .optional()
 });
 
 // User login validation
